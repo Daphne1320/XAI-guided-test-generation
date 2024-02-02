@@ -4,10 +4,10 @@ from sklearn.manifold import TSNE
 from CVAE import CVAE
 from NoisyDataGenerator import NoisyDataGenerator
 from plot import plot_encodings2d_with_labels
-from utils import get_mnist_data, sample_and_categorize
+from utils import get_mnist_data, sample_and_categorize, timer
 
 
-
+@timer
 def pretrain_cae(x_train, x_train_samples):
     # x_train and x_train_samples are reshaped to 1-d vectors
 
@@ -15,13 +15,13 @@ def pretrain_cae(x_train, x_train_samples):
     model_pre = CVAE()
 
     # %%time
-    history = model_pre.model.fit(data_gen, epochs=50)
+    history = model_pre.model.fit(data_gen, epochs=10)
     # plot_learning_curve(history)
     # plot_denoiser_examples(model_pre.model, x_train_samples)
 
     classifier = model_pre.classifier()
     encodings_pretrain = model_pre.encoder.predict(x_train_samples)
-    image_encoder = model_pre.clone_encoder(model_pre.image_encoder())
+    image_encoder = model_pre.clone_encoder()
 
     return classifier, encodings_pretrain, image_encoder
 

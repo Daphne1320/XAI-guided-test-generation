@@ -1,5 +1,7 @@
 import tensorflow as tf
 import numpy as np
+import functools
+import time
 
 from keras.utils import to_categorical
 
@@ -29,3 +31,16 @@ def sample_and_categorize(train_images, train_labels, number=3000):
     # y to labels (in category format)
     sample_labels = np.argmax(sample_labels, axis=-1)
     return samples, sample_labels
+
+
+def timer(func):
+    @functools.wraps(func)
+    def wrapper(*args, **kwargs):
+        start_time = time.perf_counter()
+        value = func(*args, **kwargs)
+        end_time = time.perf_counter()
+        run_time = end_time - start_time
+        print("Finished {} in {} secs".format(repr(func.__name__), round(run_time, 3)))
+        return value
+
+    return wrapper
