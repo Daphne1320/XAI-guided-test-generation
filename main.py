@@ -35,6 +35,7 @@ if __name__ == "__main__":
     x_train = np.reshape(train_images, (-1, 784))
     x_train_samples = np.reshape(samples, (-1, 784))
 
+    # save model to local & import next time
     clf, encodings_samples, encoder = pretrain_cae(x_train, x_train_samples)
 
     # plot
