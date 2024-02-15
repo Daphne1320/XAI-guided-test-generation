@@ -2,7 +2,7 @@ import numpy as np
 
 from sklearn.manifold import TSNE
 
-from VAE import VAE
+from VAE.VAE import VAE
 from NoisyDataGenerator import NoisyDataGenerator
 from plot import plot_encodings2d_with_labels
 from utils import get_mnist_data, sample_and_categorize, timer
