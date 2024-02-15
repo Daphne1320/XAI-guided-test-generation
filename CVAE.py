@@ -3,12 +3,12 @@ import tensorflow as tf
 from tqdm import tqdm
 import datetime
 import os
-from tensorflow.python.keras.models import load_model
+from tensorflow.python.keras.models import load_model, clone_model
 
 
 class CVAE(tf.keras.Model):
 
-    def __init__(self, latent_dim, inter_dim):
+    def __init__(self, latent_dim=64, inter_dim=512):
         super(CVAE, self).__init__()
 
         self.latent_dim = latent_dim
@@ -126,6 +126,12 @@ class CVAE(tf.keras.Model):
             probs = tf.sigmoid(logits)
             return probs
         return logits
+
+    def clone_encoder(self):
+        cloned_encoder = clone_model(self.encoder)
+        cloned_encoder.set_weights(self.encoder.get_weights())
+        cloned_encoder.trainable = False
+        return cloned_encoder
 
     def save(self, path):
         self.encoder.save(os.path.join(path, "CVAE_encoder.ckpt.h5"))

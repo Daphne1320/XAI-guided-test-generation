@@ -33,6 +33,12 @@ def sample_and_categorize(train_images, train_labels, number=3000):
     return samples, sample_labels
 
 
+# model each pixel with a Bernoulli distribution
+def preprocess_images(images):
+    images = images.reshape((images.shape[0], 28, 28, 1)) / 255.
+    return images.astype('float32')
+
+
 def timer(func):
     @functools.wraps(func)
     def wrapper(*args, **kwargs):

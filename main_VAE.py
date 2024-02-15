@@ -1,6 +1,7 @@
 import numpy as np
 
 from sklearn.manifold import TSNE
+
 from VAE import VAE
 from NoisyDataGenerator import NoisyDataGenerator
 from plot import plot_encodings2d_with_labels
@@ -8,7 +9,7 @@ from utils import get_mnist_data, sample_and_categorize, timer
 
 
 @timer
-def pretrain_cvae(x_train, x_train_samples):
+def pretrain_vae(x_train, x_train_samples):
     # x_train and x_train_samples are reshaped to 1-d vectors
 
     data_gen = NoisyDataGenerator(x_train, batch_size=128)
@@ -36,7 +37,7 @@ if __name__ == "__main__":
     x_train_samples = np.reshape(samples, (-1, 784))
 
     # save model to local & import next time
-    clf, encodings_samples, encoder = pretrain_cvae(x_train, x_train_samples)
+    clf, encodings_samples, encoder = pretrain_vae(x_train, x_train_samples)
 
     # plot
     tsne = TSNE(n_components=2, random_state=42)
