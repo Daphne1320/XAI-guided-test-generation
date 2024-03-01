@@ -5,7 +5,7 @@ import datetime
 import os
 from tensorflow.python.keras.models import load_model
 
-
+# Conditional Variarional Autoencoder
 class CVAE(tf.keras.Model):
 
     def __init__(self, latent_dim=64, inter_dim=512):

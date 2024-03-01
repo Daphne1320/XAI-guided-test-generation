@@ -33,7 +33,7 @@ class KLDivergenceLayer(Layer):
 
         return inputs
 
-
+# Variational Autoencoder
 class VAE:
     def __init__(self, input_dim=784, latent_dim=2, intermediate_dim=512):
         self.input_dim = input_dim
@@ -59,7 +59,7 @@ class VAE:
         decoder = Sequential([
             Dense(self.intermediate_dim, input_dim=self.latent_dim, activation='relu'),
             Dense(self.input_dim, activation='sigmoid')
-        ])
+        ], name="vae_decoder")
 
         x_pred = decoder(z)
 

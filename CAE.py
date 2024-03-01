@@ -3,7 +3,7 @@ from tensorflow.python.keras.layers import (Input, Dense, Conv2D, MaxPooling2D, 
 from tensorflow.python.keras.models import Model, Sequential, clone_model, load_model
 from tensorflow.python.keras.optimizers import adam_v2
 
-# rename to AE
+# Conventional AutoEncoder
 class CAE:
     def __init__(self, input_dim=784, latent_dim=64, intermediate_dim=512):
         self.input_dim = input_dim
