@@ -38,6 +38,23 @@ def preprocess_images(images):
     images = images.reshape((images.shape[0], 28, 28, 1)) / 255.
     return images.astype('float32')
 
+def gradient_of_x(x, y, model):
+    # Convert the numpy arrays to TensorFlow tensors
+    input_data = tf.convert_to_tensor(x, dtype=tf.float32)
+    true_labels = tf.convert_to_tensor(y, dtype=tf.float32)
+
+    with tf.GradientTape() as tape:
+        tape.watch(input_data)  # Explicitly watch the input tensor
+
+        # Now directly feeding `input_data` to the model, so TensorFlow automatically tracks operations
+        predictions = model(input_data, training=False)
+
+        # Compute the categorical cross-entropy loss
+        loss = tf.keras.losses.categorical_crossentropy(true_labels, predictions)
+
+    # Compute the gradient of the loss with respect to the input
+    return tape.gradient(loss, input_data)
+
 
 def timer(func):
     @functools.wraps(func)

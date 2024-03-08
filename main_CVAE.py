@@ -27,7 +27,7 @@ def pretrain_cvae():
     history = model_pre.fit(train_dataset, test_dataset, epochs=1)
 
     # save
-    model_pre.save("./saved_model/CVAE")
+    model_pre.save("./trained_model/CVAE")
 
     encodings_pretrain = model_pre.encoder.predict([train_images[:1000, :], train_labels[:1000, :]])
 
