@@ -1,8 +1,19 @@
 import tensorflow as tf
+from model.XAI_classifier import xai_model
 from train_vae import *
 
 
-def gradient_of_x(x, y, model):
+def gradient_of_x(x, y, model, before_softmax=False):
+
+    # Check if the last layer is a Dense layer with softmax activation
+    if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
+            getattr(model.layers[-1], 'activation') == tf.keras.activations.softmax:
+        # Modify the last layer to have a linear activation
+        model_clone = tf.keras.models.clone_model(model)
+        model_clone.set_weights(model.get_weights())
+        model_clone.layers[-1].activation = tf.keras.activations.linear
+        model = tf.keras.Model(inputs=model_clone.inputs, outputs=model_clone.layers[-1].output)
+
     # Convert the numpy arrays to TensorFlow tensors
     input_data = tf.convert_to_tensor(x, dtype=tf.float32)
     true_labels = tf.convert_to_tensor(y, dtype=tf.float32)
@@ -19,8 +30,35 @@ def gradient_of_x(x, y, model):
     # Compute the gradient of the loss with respect to the input
     return tape.gradient(loss, input_data)
 
+# x as correct predicted input data
+def saliency_of_x(x, model, before_softmax=False):
 
-def plot_image_and_gradient(img, gradient):
+    # Check if the last layer is a Dense layer with softmax activation
+    if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
+            getattr(model.layers[-1], 'activation') == tf.keras.activations.softmax:
+        # Modify the last layer to have a linear activation
+        model_clone = tf.keras.models.clone_model(model)
+        model_clone.set_weights(model.get_weights())
+        model_clone.layers[-1].activation = tf.keras.activations.linear
+        model = tf.keras.Model(inputs=model_clone.inputs, outputs=model_clone.layers[-1].output)
+
+    # Convert the numpy array to a TensorFlow tensor
+    input_data = tf.convert_to_tensor(x, dtype=tf.float32)
+
+    with tf.GradientTape() as tape:
+        tape.watch(input_data)  # Explicitly watch the input tensor
+
+        # Feeding `input_data` to the model and tracking operations for gradient computation
+        predictions = model(input_data, training=False)
+
+        # Use the maximum of the predictions as the target for the gradient
+        target = tf.reduce_max(predictions, axis=1)
+
+    # Compute the gradient of the target with respect to the input
+    return tape.gradient(target, input_data)
+
+
+def plot_image_and_gradient(img, gradient, title='Gradient of Hidden vector'):
     # Plotting setup with adjusted aspect ratio for a narrower gradient plot
     fig, axs = plt.subplots(1, 2, figsize=(12, 4), gridspec_kw={'width_ratios': [1, 0.2]})
 
@@ -32,7 +70,7 @@ def plot_image_and_gradient(img, gradient):
     # 1D Gradient Vertically and Narrow
     ax = axs[1]
     ax.barh(range(len(gradient)), gradient, color='blue')  # Using a single color for simplicity
-    ax.set_title('Gradient of Hidden vector')
+    ax.set_title(title)
     ax.invert_yaxis()  # Inverting the y-axis
 
     plt.tight_layout()
@@ -146,6 +184,8 @@ def latent_space_display_mark(h, y, decoder, predictor, highlight_dim=0, n_varia
 
             if i == 0:
                 ax.set_ylabel(f'Dim {dim}')
+            if dim == num_dims - 1:
+                ax.set_xlabel(f"{var}")
 
     plt.tight_layout()
     plt.show()
@@ -156,54 +196,47 @@ if __name__ == '__main__':
     # load data
     train_images, train_labels, test_images, test_labels = mnist_data()
     samples, sample_labels = sample_and_categorize(train_images, train_labels, number=3000)
+    samples_test, sample_labels_test = sample_and_categorize(test_images, test_labels, number=len(test_labels))
     print(samples.shape)
     print(sample_labels.shape)
 
     # reshape data
     x_train = np.reshape(samples, (-1, 784))
     # x_train = np.reshape(train_images, (-1, 784))
+    # x_train_samples = np.reshape(samples, (-1, 784))
     print(x_train.shape)
-
-    # 2. model: train a VAE
-    model_pre = VAE(latent_dim=12)
-
-    # Fit the model. Note that the 'eps' input is ignored because it is an Input tensor.
-    dummy_eps_input = np.zeros((len(x_train), model_pre.latent_dim))
-    history = model_pre.model.fit([x_train, dummy_eps_input], x_train, shuffle=True, epochs=50, batch_size=100)
-    # plot_learning_curve(history)
-    model_pre.save()
-
-    exit()
-
-    # visualize latent space in 2 dimension
-    # tsne = TSNE(n_components=2, random_state=42)
-    # encodings_samples_2d = tsne.fit_transform(encodings_samples)
-    # plot_encodings2d_with_labels(encodings_samples_2d, sample_labels)
+    # print(x_train_samples.shape)
 
     # XAI framework
     vae = VAE.load("trained_models")
-    cnn = load_model("trained_models/CNN/classifier.h5")
+    cnn = load_model("trained_models/classifier.h5")
     xai = xai_model(vae.decoder, cnn, input_shape=(12,))
     xai.summary()
 
-    x_samples = np.reshape(samples, (-1, 784))
-    encodings_samples = vae.encoder.predict(x_samples)
-    sample_labels_onehot = tf.one_hot(tf.constant(sample_labels), depth=10).numpy()
+    view_samples = samples_test
+    view_sample_labels = sample_labels_test
+    # view_samples = samples
+    # view_sample_labels = sample_labels
+
+    x_view = np.reshape(view_samples, (-1, 784))
+    y_view_onehot = tf.one_hot(tf.constant(view_sample_labels), depth=10).numpy()
+    h_view = vae.encoder.predict(x_view)
 
     count = 10
-    for i in range(len(x_samples)):
-        x = np.array([encodings_samples[i]])
-        y = np.array([sample_labels_onehot[i]])
-        g = gradient_of_x(x, y, xai)
+    for i in range(len(x_view)):
+        x = np.array([h_view[i]])
+        y = np.array([y_view_onehot[i]])
+        # g = gradient_of_x(x, y, xai)
+        g = saliency_of_x(x, xai)
 
-        g_abs = np.abs(np.squeeze(g.numpy()))
-
-        plot_image_and_gradient(np.reshape(x_samples[i], (28, 28)), g_abs)
+        g_npy = np.squeeze(g.numpy())
+        # plot_image_and_gradient(np.reshape(x_view[i], (28, 28)), g_npy, title="Gradient of hidden vector")
+        plot_image_and_gradient(np.reshape(x_view[i], (28, 28)), g_npy, title="Saliency of hidden vector")
 
         # Identify the maximum gradient entry
-        max_grad_index = np.argmax(g_abs)
+        max_grad_index = np.argmax(np.abs(g_npy))
         # latent_space_display(x, vae.decoder, highlight_dim=max_grad_index)
-        latent_space_display_mark(x, sample_labels[i], vae.decoder, xai, highlight_dim=max_grad_index)
+        latent_space_display_mark(x, view_sample_labels[i], vae.decoder, xai, highlight_dim=int(max_grad_index))
 
         if count <= 0:
             break
