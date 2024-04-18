@@ -2,9 +2,9 @@ import tensorflow as tf
 import numpy as np
 from sklearn.manifold import TSNE
 
-from CVAE import CVAE
-from plot import plot_encodings2d_with_labels
-from utils import get_mnist_data, timer, preprocess_images
+from model.cvae import CVAE
+from utils.plot import plot_encodings2d_with_labels
+from utils.utils import get_mnist_data, timer, preprocess_images
 
 
 @timer

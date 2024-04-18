@@ -1,5 +1,4 @@
 import tensorflow as tf
-from model.XAI_classifier import xai_model
 from train_vae import *
 
 

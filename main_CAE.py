@@ -2,10 +2,10 @@ import numpy as np
 
 from sklearn.manifold import TSNE
 
-from CAE import CAE
-from NoisyDataGenerator import NoisyDataGenerator
-from plot import plot_encodings2d_with_labels
-from utils import get_mnist_data, sample_and_categorize, timer
+from model.cae import CAE
+from utils.NoisyDataGenerator import NoisyDataGenerator
+from utils.plot import plot_encodings2d_with_labels
+from utils.utils import get_mnist_data, sample_and_categorize, timer
 
 
 @timer
