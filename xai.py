@@ -1,9 +1,10 @@
+import numpy as np
 import tensorflow as tf
+from model.XAI_classifier import xai_model
 from train_vae import *
 
 
 def gradient_of_x(x, y, model, before_softmax=False):
-
     # Check if the last layer is a Dense layer with softmax activation
     if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
             getattr(model.layers[-1], 'activation') == tf.keras.activations.softmax:
@@ -29,9 +30,8 @@ def gradient_of_x(x, y, model, before_softmax=False):
     # Compute the gradient of the loss with respect to the input
     return tape.gradient(loss, input_data)
 
-# x as correct predicted input data
-def saliency_of_x(x, model, before_softmax=False):
 
+def saliency_of_x(x, model, before_softmax=False):
     # Check if the last layer is a Dense layer with softmax activation
     if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
             getattr(model.layers[-1], 'activation') == tf.keras.activations.softmax:
@@ -57,6 +57,51 @@ def saliency_of_x(x, model, before_softmax=False):
     return tape.gradient(target, input_data)
 
 
+def effect_of_x(x, y, model, before_softmax=False, delta=1e-3):
+    """
+    A trival form of gradient
+
+    :param x:
+    :param y:
+    :param model:
+    :param before_softmax:
+    :return:
+    """
+
+    # Check if the last layer is a Dense layer with softmax activation
+    if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
+            getattr(model.layers[-1], 'activation') == tf.keras.activations.softmax:
+        # Modify the last layer to have a linear activation
+        model_clone = tf.keras.models.clone_model(model)
+        model_clone.set_weights(model.get_weights())
+        model_clone.layers[-1].activation = tf.keras.activations.linear
+        model = tf.keras.Model(inputs=model_clone.inputs, outputs=model_clone.layers[-1].output)
+
+    g = np.zeros(x.shape[-1])
+    for i in range(x.shape[-1]):
+        x_delta = np.zeros((x.shape[-1]))
+        x_delta[i] = 1
+        x_2 = x + x_delta * delta
+
+        # Convert the numpy arrays to TensorFlow tensors
+        input_data = tf.convert_to_tensor(x, dtype=tf.float32)
+        input_data_2 = tf.convert_to_tensor(x_2, dtype=tf.float32)
+        true_labels = tf.convert_to_tensor(y, dtype=tf.float32)
+
+        # Now directly feeding `input_data` to the model, so TensorFlow automatically tracks operations
+        predictions = model(input_data, training=False)
+        predictions_2 = model(input_data_2, training=False)
+
+        # Compute the categorical cross-entropy loss
+        loss = tf.keras.losses.categorical_crossentropy(true_labels, predictions)
+        loss_2 = tf.keras.losses.categorical_crossentropy(true_labels, predictions_2)
+
+        loss_delta = loss_2 - loss
+        g[i] = loss_delta / delta
+
+    return g
+
+
 def plot_image_and_gradient(img, gradient, title='Gradient of Hidden vector'):
     # Plotting setup with adjusted aspect ratio for a narrower gradient plot
     fig, axs = plt.subplots(1, 2, figsize=(12, 4), gridspec_kw={'width_ratios': [1, 0.2]})
@@ -71,6 +116,40 @@ def plot_image_and_gradient(img, gradient, title='Gradient of Hidden vector'):
     ax.barh(range(len(gradient)), gradient, color='blue')  # Using a single color for simplicity
     ax.set_title(title)
     ax.invert_yaxis()  # Inverting the y-axis
+
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_image_and_gradients(img, gradients, visual_names, title='Gradients Visualization'):
+    # Setup the figure and grid
+    fig, axs = plt.subplots(1, 2, figsize=(12, 6), gridspec_kw={'width_ratios': [1, 3]})
+
+    # Plot the original image
+    axs[0].imshow(img, cmap='gray')
+    axs[0].set_title('Original Image')
+    axs[0].axis('off')  # Turn off axis for clean look
+
+    # Prepare data for bar chart
+    num_gradients = len(gradients)
+    gradient_lengths = [len(gradient) for gradient in gradients]
+    max_length = max(gradient_lengths)
+
+    # Normalize lengths of gradients for consistent plotting
+    normalized_gradients = [np.pad(gradient, (0, max_length - len(gradient)), 'constant') for gradient in gradients]
+
+    # Calculate the width of each bar so they don't overlap
+    bar_width = 1.0 / (num_gradients + 1)  # Space out bars; you can adjust the denominator for spacing
+
+    # Plot each gradient in the same bar chart with offset positions
+    for i, gradient in enumerate(normalized_gradients):
+        positions = range(max_length)  # Base positions of bars
+        adjusted_positions = [p + bar_width * i for p in positions]  # Adjust position for each gradient
+        axs[1].barh(adjusted_positions, gradient, height=bar_width, color=plt.cm.tab10(i % 10), label=visual_names[i])
+
+    axs[1].set_title(title)
+    axs[1].invert_yaxis()  # Inverting the y-axis for consistent visual
+    axs[1].legend(loc='best')  # Adding a legend to identify gradients
 
     plt.tight_layout()
     plt.show()
@@ -229,7 +308,7 @@ if __name__ == '__main__':
         g = saliency_of_x(x, xai)
 
         g_npy = np.squeeze(g.numpy())
-        # plot_image_and_gradient(np.reshape(x_view[i], (28, 28)), g_npy, title="Gradient of hidden vector")
+        # plot_image_and_gradient(np.reshape(x_view[i], (28, 28)), g_npy)
         plot_image_and_gradient(np.reshape(x_view[i], (28, 28)), g_npy, title="Saliency of hidden vector")
 
         # Identify the maximum gradient entry
