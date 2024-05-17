@@ -1,4 +1,4 @@
-from tensorflow.python.keras.models import clone_model
+from tensorflow.keras.models import clone_model
 
 def clone_encoder(encoder):
     cloned_encoder = clone_model(encoder)

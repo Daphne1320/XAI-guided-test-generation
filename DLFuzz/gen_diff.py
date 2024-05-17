@@ -11,11 +11,11 @@ from datetime import datetime
 
 from collections import defaultdict
 import tensorflow as tf
-from tensorflow.python.keras.layers import Dense
-from tensorflow.python.keras.layers import Input, Activation
-from tensorflow.python.keras import backend as K
-from tensorflow.python.keras.models import Model
-from tensorflow.python.keras.preprocessing import image
+from tensorflow.keras.layers import Dense
+from tensorflow.keras.layers import Input, Activation
+from tensorflow.keras import backend as K
+from tensorflow.keras.models import Model
+from tensorflow.keras.preprocessing import image
 
 
 

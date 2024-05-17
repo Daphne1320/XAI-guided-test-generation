@@ -1,5 +1,5 @@
-from tensorflow.python.keras.layers import Input, Reshape
-from tensorflow.python.keras.models import Model
+from tensorflow.keras.layers import Input, Reshape
+from tensorflow.keras.models import Model
 
 
 def xai_model(decoder, nn, input_shape=(2,), name="xai"):

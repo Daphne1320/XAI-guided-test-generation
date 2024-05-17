@@ -1,6 +1,8 @@
+import argparse
+
 import numpy as np
 import matplotlib.pyplot as plt
-from tensorflow.python.keras.models import clone_model, load_model
+from tensorflow.keras.models import clone_model, load_model
 from sklearn.manifold import TSNE
 
 from model.vae import VAE
@@ -98,10 +100,30 @@ def plot_encodings2d_with_labels(encodings, labels):
     plt.show()
 
 
+def train_vae(x_train, latent_dim, epochs_size):
+
+    model_pre = VAE(latent_dim=latent_dim)
+
+    dummy_eps_input = np.zeros((len(x_train), model_pre.latent_dim))
+
+    # Fit the model. Note that the 'eps' input is ignored because it is an Input tensor.
+    history = model_pre.model.fit([x_train, dummy_eps_input], x_train, shuffle=True, epochs=epochs_size, batch_size=100)
+    # plot_learning_curve(history)
+
+    model_pre.save()
+    return model_pre
+
+
 if __name__ == "__main__":
+    # parse args
+    parser = argparse.ArgumentParser(description="Run script with arguments")
+    parser.add_argument("--load_model", action='store_true', help="Whether load existing model or train new model.")
+
+    args = parser.parse_args()
+
     # 1. data
     train_images, train_labels, test_images, test_labels = mnist_data()
-    samples, sample_labels = sample_and_categorize(train_images, train_labels, number=3000)
+    samples, sample_labels = sample_and_categorize(train_images, train_labels, number=60000)
     # print(samples.shape)
     # print(sample_labels.shape)
 
@@ -111,34 +133,34 @@ if __name__ == "__main__":
     # print(x_train.shape)
     # print(x_train_samples.shape)
 
-    model_pre = VAE()
+    lat_dim = 10
 
-    dummy_eps_input = np.zeros((len(x_train), model_pre.latent_dim))
+    # 2. load model
+    if args.load_model:
+        # run python train_vae.py --load_model
+        vae_model = VAE.load(model_path="trained_models/VAE")
+    else:
+        # run python train_vae.py
+        vae_model = train_vae(x_train, lat_dim, 100)
 
-    # Fit the model. Note that the 'eps' input is ignored because it is an Input tensor.
-    history = model_pre.model.fit([x_train, dummy_eps_input], x_train, shuffle=True, epochs=50, batch_size=100)
-    # plot_learning_curve(history)
+    classifier = vae_model.classifier()
+    encodings_pretrain = vae_model.encoder.predict(x_train_samples)
+    image_encoder = clone_encoder(vae_model.image_encoder())
 
-    model_pre.save()
-    exit()
-
-    classifier = model_pre.classifier()
-    encodings_pretrain = model_pre.encoder.predict(x_train_samples)
-    image_encoder = clone_encoder(model_pre.image_encoder())
-
-    encodings_samples = model_pre.encoder.predict(x_train_samples)
-
-    tsne = TSNE(n_components=2, random_state=42)
-    encodings_samples_2d = tsne.fit_transform(encodings_samples)
-    plot_encodings2d_with_labels(encodings_samples_2d, sample_labels)
+    # t-SNE (t-Distributed Stochastic Neighbor Embedding)
+    # Purpose: t-SNE is a machine learning algorithm for dimensionality reduction,
+    # particularly well-suited for visualizing high-dimensional data in two or three dimensions.
+    # tsne = TSNE(n_components=2, random_state=42)
+    # encodings_samples_2d = tsne.fit_transform(encodings_pretrain)
+    # plot_encodings2d_with_labels(encodings_samples_2d, sample_labels)
 
     cnn = load_model("trained_models/CNN/classifier.h5")
 
-    xai = xai_model(model_pre.decoder, cnn)
+    xai = xai_model(vae_model.decoder, cnn, input_shape=(lat_dim,))
 
-    z = [2, 2]
+    z = [2, 2, 1, 2, 1, 2, 0, 1, 1, 0]
 
-    img = model_pre.decoder.predict([z])
+    img = vae_model.decoder.predict([z])
     img = np.reshape(img[0], (28, 28))
 
     y = xai.predict([z])[0]

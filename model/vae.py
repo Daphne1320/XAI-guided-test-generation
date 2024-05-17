@@ -1,8 +1,8 @@
 import os
-from tensorflow.python.keras.layers import (Input, Dense, Lambda, Layer, Multiply, Add, Flatten)
-from tensorflow.python.keras.models import Model, Sequential, load_model
-from tensorflow.python.keras.optimizers import adam_v2
-import tensorflow.python.keras.backend as K
+from tensorflow.keras.layers import (Input, Dense, Lambda, Layer, Multiply, Add, Flatten)
+from tensorflow.keras.models import Model, Sequential, load_model
+from tensorflow.keras.optimizers import Adam
+import tensorflow.keras.backend as K
 
 
 def nll(y_true, y_pred):
@@ -15,7 +15,8 @@ def nll(y_true, y_pred):
 
 class KLDivergenceLayer(Layer):
     """ Identity transform layer that adds KL divergence
-    to the final model loss.
+    to the final model loss. This is a crucial component in VAEs to
+    ensure the latent space distribution remains close to a standard normal distribution.
     """
 
     def __init__(self, *args, **kwargs):
@@ -51,6 +52,7 @@ class VAE:
         z_mu, z_log_var = KLDivergenceLayer()([z_mu, z_log_var])
         z_sigma = Lambda(lambda t: K.exp(.5 * t))(z_log_var)
 
+        # variational
         eps = Input(tensor=K.random_normal(stddev=1.0,
                                            shape=(K.shape(x)[0], self.latent_dim)))
         z_eps = Multiply()([z_sigma, eps])
@@ -80,7 +82,7 @@ class VAE:
         classifier_output = Dense(10, activation='softmax')(x)
 
         classifier = Model(input_img, classifier_output)
-        classifier.compile(optimizer=adam_v2(lr), loss='categorical_crossentropy', metrics=['accuracy'])
+        classifier.compile(optimizer=Adam(lr), loss='categorical_crossentropy', metrics=['accuracy'])
         return classifier
 
     def image_encoder(self):

@@ -1,7 +1,7 @@
 import os
-from tensorflow.python.keras.layers import (Input, Dense, Conv2D, MaxPooling2D, Flatten, Reshape, UpSampling2D)
-from tensorflow.python.keras.models import Model, Sequential, clone_model, load_model
-from tensorflow.python.keras.optimizers import adam_v2
+from tensorflow.keras.layers import (Input, Dense, Conv2D, MaxPooling2D, Flatten, Reshape, UpSampling2D)
+from tensorflow.keras.models import Model, Sequential, clone_model, load_model
+from tensorflow.keras.optimizers import Adam
 
 # Conventional AutoEncoder
 class CAE:
@@ -54,7 +54,7 @@ class CAE:
         classifier_output = Dense(10, activation='softmax')(x)
 
         classifier = Model(input_img, classifier_output)
-        classifier.compile(optimizer=adam_v2(lr), loss='categorical_crossentropy', metrics=['accuracy'])
+        classifier.compile(optimizer=Adam(lr), loss='categorical_crossentropy', metrics=['accuracy'])
         return classifier
 
     def image_encoder(self):
