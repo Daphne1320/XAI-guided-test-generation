@@ -113,6 +113,9 @@ def normalize_as_probability_distribution(arr):
 
 
 def kl_divergence(img1, img2):
+    # Kullback-Leibler (KL)
+    # If the KL divergence is small, it indicates that the distributions represented by the two images are similar.
+    # If the KL divergence is large, it indicates that the distributions represented by the two images are different.
     img1 = normalize_as_probability_distribution(img1.flatten())
     img2 = normalize_as_probability_distribution(img2.flatten())
     img1 = img1[img2 != 0]
@@ -122,18 +125,21 @@ def kl_divergence(img1, img2):
 
 def js_divergence(img1, img2):
     # jessen divergence
-    img1 = normalize_as_probability_distribution(img1.flatten())
-    img2 = normalize_as_probability_distribution(img2.flatten())
-    img1 = img1[img2 != 0]
-    img2 = img2[img2 != 0]
+    # Smaller JS Divergence is Better: Similar to KL divergence,
+    # a smaller JS divergence indicates that the two distributions are more similar.
+    _img1 = normalize_as_probability_distribution(img1.flatten())
+    _img2 = normalize_as_probability_distribution(img2.flatten())
+    img1 = _img1[_img2 != 0]
+    img2 = _img2[_img2 != 0]
     kl1 = entropy(img1, img2)
-    img1 = img1[img1 != 0]
-    img2 = img2[img1 != 0]
-    kl2 = entropy(img1, img2)
+    img1 = _img1[_img1 != 0]
+    img2 = _img2[_img1 != 0]
+    kl2 = entropy(img2, img1)
     return (kl1 + kl2) / 2
 
 
 def ws_distance(img1, img2):
+    # Smaller values indicate that the distributions are more similar.
     img1 = normalize_as_probability_distribution(img1.flatten())
     img2 = normalize_as_probability_distribution(img2.flatten())
     return wasserstein_distance(img1, img2)
