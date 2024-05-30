@@ -36,10 +36,11 @@ class KLDivergenceLayer(Layer):
 
 
 class VAE:
-    def __init__(self, input_dim=784, latent_dim=2, intermediate_dim=512):
+    def __init__(self, input_dim=784, latent_dim=2, intermediate_dim=512, name="vae"):
         self.input_dim = input_dim
         self.latent_dim = latent_dim
         self.intermediate_dim = intermediate_dim
+        self.name = name
         self.model, self.encoder, self.decoder = self.build_model()
 
     def build_model(self):
@@ -89,16 +90,16 @@ class VAE:
         return self.encoder
 
     def save(self, model_path="trained_models/VAE"):
-        self.model.save(os.path.join(model_path, "vae_model.h5"))
-        self.encoder.save(os.path.join(model_path, "vae_encoder.h5"))
-        self.decoder.save(os.path.join(model_path, "vae_decoder.h5"))
+        self.model.save(os.path.join(model_path, f"{self.name}_model.h5"))
+        self.encoder.save(os.path.join(model_path, f"{self.name}_encoder.h5"))
+        self.decoder.save(os.path.join(model_path, f"{self.name}_decoder.h5"))
 
     @classmethod
-    def load(cls, model_path):
+    def load(cls, model_path, model_name="vae"):
         model = cls()
-        model.model = load_model(os.path.join(model_path, "vae_model.h5"),
+        model.model = load_model(os.path.join(model_path, f"{model_name}_model.h5"),
                                  custom_objects={"KLDivergenceLayer": KLDivergenceLayer, "nll": nll})
-        model.encoder = load_model(os.path.join(model_path, "vae_encoder.h5"),
+        model.encoder = load_model(os.path.join(model_path, f"{model_name}_encoder.h5"),
                                    custom_objects={"KLDivergenceLayer": KLDivergenceLayer, "nll": nll})
-        model.decoder = load_model(os.path.join(model_path, "vae_decoder.h5"))
+        model.decoder = load_model(os.path.join(model_path, f"{model_name}_decoder.h5"))
         return model

@@ -2,12 +2,8 @@
 
 from __future__ import print_function
 
-from PIL import Image
-import sys
-import os
 import random
 import numpy as np
-from datetime import datetime
 
 from collections import defaultdict
 import tensorflow as tf
@@ -15,67 +11,8 @@ from tensorflow.keras.layers import Dense
 from tensorflow.keras.layers import Input, Activation
 from tensorflow.keras import backend as K
 from tensorflow.keras.models import Model
-from tensorflow.keras.preprocessing import image
-
-
 
 model_layer_weights_top_k = []
-
-
-def load_model(model_name, input_tensor):
-    from Model1 import Model1
-    if model_name == 'model1':
-        model = Model1(input_tensor=input_tensor)
-    # elif model_name == 'model2':
-    #    model = Model2(input_tensor=input_tensor)
-    # elif model_name == 'model3':
-    #    model = Model3(input_tensor=input_tensor)
-    else:
-        print('please specify correct model name')
-        os._exit(0)
-    print(model.name)
-    return model
-
-
-def clear_up_dir(directory):
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-    else:
-        for i in os.listdir(directory):
-            path_file = os.path.join(directory, i)
-            if os.path.isfile(path_file):
-                os.remove(path_file)
-
-
-def load_image(img_path):
-    img = image.load_img(img_path, target_size=(28, 28), grayscale=True)
-    input_img_data = image.img_to_array(img)
-    input_img_data = input_img_data.reshape(1, 28, 28, 1)
-
-    input_img_data = input_img_data.astype('float32')
-    input_img_data /= 255
-    # input_img_data = preprocess_input(input_img_data)  # final input shape = (1,224,224,3)
-    return input_img_data
-
-
-def normalize(x):
-    # utility function to normalize a tensor by its L2 norm
-    return x / (K.sqrt(K.mean(K.square(x))) + 1e-5)
-
-
-def deprocess_image(x):
-    x *= 255
-    x = np.clip(x, 0, 255).astype('uint8')
-    return x.reshape(x.shape[1], x.shape[2])  # original shape (1,img_rows, img_cols,1)
-
-
-def get_signature():
-    now = datetime.now()
-    past = datetime(2015, 6, 6, 0, 0, 0, 0)
-    timespan = now - past
-    time_sig = int(timespan.total_seconds() * 1000)
-
-    return str(time_sig)
 
 
 class DLFuzz:
@@ -84,14 +21,16 @@ class DLFuzz:
 
     """
 
-    def __init__(self, model, neuron_select_strategy, threshold, neuron_to_cover_num, iteration_times,
-                 neuron_to_cover_weight):
+    def __init__(self, model,  neuron_select_strategy=None, threshold=0.5, neuron_to_cover_num=5, iteration_times=5,
+                    neuron_to_cover_weight=.05, predict_weight=0.5, learning_step=0.02):
         self.model = model
-        self.neuron_select_strategy = neuron_select_strategy
+        self.neuron_select_strategy = ["2"] if neuron_select_strategy is None else neuron_select_strategy
         self.threshold = threshold
         self.neuron_to_cover_num = neuron_to_cover_num
         self.iteration_times = iteration_times
         self.neuron_to_cover_weight = neuron_to_cover_weight
+        self.predict_weight = predict_weight
+        self.learning_step = learning_step
 
         # extreme value means the activation value for a neuron can be as high as possible ...
         EXTREME_VALUE = False
@@ -158,8 +97,10 @@ class DLFuzz:
     @staticmethod
     def update_coverage(input_data, model, model_layer_times, threshold=0.0):
         layer_names = [layer.name for layer in model.layers if
-                       'flatten' not in layer.name and 'input' not in layer.name]
-
+                       'flatten' not in layer.name and
+                       'input' not in layer.name and
+                       'reshape' not in layer.name and
+                       'dropout' not in layer.name]
         intermediate_layer_model = Model(inputs=model.input,
                                          outputs=[model.get_layer(layer_name).output for layer_name in layer_names])
         intermediate_layer_outputs = intermediate_layer_model(input_data)
@@ -363,19 +304,28 @@ class DLFuzz:
 
     @staticmethod
     def before_softmax_model(model):
-
         if isinstance(model.layers[-1], Activation):
             return Model(inputs=model.inputs, outputs=model.get_layer('before_softmax').output)
         else:
             # Get the configuration of the original last layer
             last_layer = model.layers[-1]
             last_layer_config = last_layer.get_config()
+            last_layer_config["name"] += "_clone"
             last_layer_config['activation'] = None  # Set activation to None
+
+            # Create a new Dense layer with the modified configuration
             new_last_layer = Dense(**last_layer_config)
+
+            # Apply the new layer to the output of the penultimate layer
+            output_before_softmax = new_last_layer(model.layers[-2].output)
+
+            # Create the new model
+            new_model = Model(inputs=model.inputs, outputs=output_before_softmax)
+
+            # Set weights of the new last layer to match those of the original last layer
             new_last_layer.set_weights(last_layer.get_weights())
 
-            output_before_softmax = new_last_layer(model.layers[-2].output)
-            return Model(inputs=model.inputs, outputs=output_before_softmax)
+            return new_model
 
     def loss_function(self, image_data):
         input_tensor = tf.Variable(initial_value=image_data)
@@ -386,7 +336,7 @@ class DLFuzz:
             # orig_pred = pred1
 
             DLFuzz.update_coverage_value(image_data, self.model, self.model_layer_value1)
-            DLFuzz.update_coverage(image_data, self.model, self.model_layer_times1, threshold)
+            DLFuzz.update_coverage(image_data, self.model, self.model_layer_times1, self.threshold)
 
             label1 = np.argmax(pred1[0])
             orig_label = label1
@@ -401,7 +351,7 @@ class DLFuzz:
             loss_4 = tf.reduce_mean(self.before_softmax_model(self.model)(input_tensor)[..., label_top5[-4]])
             loss_5 = tf.reduce_mean(self.before_softmax_model(self.model)(input_tensor)[..., label_top5[-5]])
 
-            layer_output = (predict_weight * (loss_2 + loss_3 + loss_4 + loss_5) - loss_1)
+            layer_output = (self.predict_weight * (loss_2 + loss_3 + loss_4 + loss_5) - loss_1)
             # layer_output = loss_1
 
             # neuron coverage loss
@@ -418,7 +368,7 @@ class DLFuzz:
         gradients = tape.gradient(final_loss, input_tensor)
 
         # we compute the gradient of the input picture wrt this loss
-        grads = normalize(gradients[0])
+        grads = self.normalize(gradients[0])
 
         grads_tensor_list = [loss_1, loss_2, loss_3, loss_4, loss_5]
         grads_tensor_list.extend(loss_neuron)
@@ -427,7 +377,7 @@ class DLFuzz:
 
         return grads_tensor_list, orig_label
 
-    def iterate_condition(self, gen_img, orig_img):
+    def iterate_condition(self, gen_img, orig_img, iter):
         # further process condition 1
         # previous accumulated neuron coverage
         previous_coverage = self.neuron_covered(self.model_layer_times1)[2]
@@ -439,7 +389,7 @@ class DLFuzz:
         L2_norm = np.linalg.norm(diff_img)
         orig_L2_norm = np.linalg.norm(orig_img)
         perturb_adversial = L2_norm / orig_L2_norm
-        return current_coverage - previous_coverage > 0.01 / (i + 1) and perturb_adversial < 0.02
+        return current_coverage - previous_coverage > 0.01 / (iter + 1) and perturb_adversial < 0.02
 
     def generate_fuzzy_image(self, tmp_img):
         orig_img = tmp_img.copy()
@@ -454,14 +404,14 @@ class DLFuzz:
             self.loss_function(gen_img)
 
             # we run gradient ascent for 3 steps
-            for _ in range(self.iteration_times):
+            for iter in range(self.iteration_times):
 
                 loss_neuron_list, orig_label = self.loss_function(gen_img)
 
-                perturb = loss_neuron_list[-1] * learning_step
+                perturb = loss_neuron_list[-1] * self.learning_step
                 gen_img += perturb
 
-                if self.iterate_condition(gen_img, orig_img):
+                if self.iterate_condition(gen_img, orig_img, iter):
                     process_queue_for_the_img.append(gen_img)
                     # print('coverage diff = ', current_coverage - previous_coverage, 'perturb_adversial = ', perturb_adversial)
 
@@ -485,58 +435,9 @@ class DLFuzz:
         # print('ratio perturb = ', perturb_adversial)
 
         # adversial_num += 1
+        return gen_img.numpy()[0]
 
-        return gen_img
-
-
-if __name__ == "__main__":
-
-    # parameters
-    # e.g.[0,1,2] None for neurons not covered, 0 for covered often, 1 for covered rarely, 2 for high weights
-    neuron_select_strategy = sys.argv[1]
-    threshold = float(sys.argv[2])
-    neuron_to_cover_num = int(sys.argv[3])
-    subdir = sys.argv[4]
-    iteration_times = int(sys.argv[5])
-    model_name = sys.argv[6]
-
-    # neuron_select_strategy, threshold, neuron_to_cover_num, subdir, iteration_times, model_name = [2], 0.5, 5, "0602", 5, "model1"
-
-    neuron_to_cover_weight = 0.5
-    predict_weight = 0.5
-    learning_step = 0.02
-
-    # input image dimensions
-    img_rows, img_cols = 28, 28
-    input_shape = (img_rows, img_cols, 1)
-
-    # define input tensor as a placeholder
-    input_tensor = Input(shape=input_shape)
-    model = load_model(model_name, input_tensor)
-
-    img_dir = './seeds_50'
-    img_paths = os.listdir(img_dir)
-    img_num = len(img_paths)
-
-    save_dir = './generated_inputs/' + subdir + '/'
-    clear_up_dir(save_dir)
-
-    K.set_learning_phase(0)
-    dlfuzz = DLFuzz(model, neuron_select_strategy, threshold, neuron_to_cover_num, iteration_times,
-                    neuron_to_cover_weight)
-
-    for i, img_path in enumerate(img_paths):
-        # load image
-        img_path = os.path.join(img_dir, img_path)
-        print(img_path)
-        tmp_img = load_image(img_path)
-
-        # calculate fuzz image
-        gen_img = dlfuzz.generate_fuzzy_image(tmp_img)
-
-        # save image
-        # mannual_label = int(img_name.split('_')[1])
-        gen_img_deprocessed = deprocess_image(gen_img.numpy())
-        img_name = img_paths[i].split('.')[0]
-        save_img = save_dir + img_name + '_' + str(get_signature()) + '.png'
-        Image.fromarray(gen_img_deprocessed).save(save_img)
+    @staticmethod
+    def normalize(x):
+        # utility function to normalize a tensor by its L2 norm
+        return x / (K.sqrt(K.mean(K.square(x))) + 1e-5)

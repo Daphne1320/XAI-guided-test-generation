@@ -9,7 +9,7 @@ from __future__ import print_function
 from keras.datasets import mnist
 from keras.layers import Convolution2D, MaxPooling2D, Input, Dense, Activation, Flatten
 from keras.models import Model
-from keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 from keras import backend as K
 
 import numpy as np
@@ -69,6 +69,7 @@ def Model1(input_tensor=None, train=False):
     x = MaxPooling2D(pool_size=(2, 2), name='block2_pool1')(x)
 
     x = Flatten(name='flatten')(x)
+
     x = Dense(nb_classes, name='before_softmax')(x)
     x = Activation('softmax', name='predictions')(x)
 
