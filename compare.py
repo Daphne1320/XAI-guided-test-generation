@@ -4,6 +4,9 @@ from __future__ import print_function
 
 from PIL import Image
 import os
+
+from scipy.special import rel_entr
+from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
 import numpy as np
@@ -110,6 +113,19 @@ def normalize_as_probability_distribution(arr):
     arr = arr - min_ / max_ - min_
     arr /= arr.sum()
     return arr
+
+
+def cross_entropy(img1, img2):
+    # element-wise relative entropy (KL divergence)
+    img1 = normalize_as_probability_distribution(img1.flatten())
+    img2 = normalize_as_probability_distribution(img2.flatten())
+    return np.sum(rel_entr(img1, img2))
+
+
+def mse_loss(img1, img2):
+    img1 = normalize_as_probability_distribution(img1.flatten())
+    img2 = normalize_as_probability_distribution(img2.flatten())
+    return mean_squared_error(img1, img2)
 
 
 def kl_divergence(img1, img2):
