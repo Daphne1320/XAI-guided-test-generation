@@ -41,7 +41,7 @@ if __name__ == "__main__":
 
         # save image
         # mannual_label = int(img_name.split('_')[1])
-        gen_img_deprocessed = deprocess_image(gen_img.numpy())
-        img_name = img_paths[i].split('.')[0]
-        save_img = save_dir + img_name + '_' + str(get_signature()) + '.png'
-        Image.fromarray(gen_img_deprocessed).save(save_img)
+        # gen_img_deprocessed = deprocess_image(gen_img.numpy())
+        # img_name = img_paths[i].split('.')[0]
+        # save_img = save_dir + img_name + '_' + str(get_signature()) + '.png'
+        # ‚Image.fromarray(gen_img_deprocessed).save(save_img)
