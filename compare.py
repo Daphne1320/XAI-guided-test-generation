@@ -155,6 +155,7 @@ def js_divergence(img1, img2):
 
 
 def ws_distance(img1, img2):
+    # distribution?? ele - ele
     # Smaller values indicate that the distributions are more similar.
     img1 = normalize_as_probability_distribution(img1.flatten())
     img2 = normalize_as_probability_distribution(img2.flatten())
