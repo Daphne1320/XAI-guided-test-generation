@@ -54,8 +54,8 @@ def load_samples_from_janusdeep(data_path="mnist_images/np_data"):
 
 if __name__ == "__main__":
 
-    vae = VAE.load("trained_models")
-    cnn = load_model("trained_models/classifier.h5")
+    vae = VAE.load("trained_models/VAE")
+    cnn = load_model("trained_models/CNN/classifier.h5")
     xai = xai_model(vae.decoder, cnn, input_shape=(12,))
 
     # input images

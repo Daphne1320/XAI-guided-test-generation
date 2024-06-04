@@ -1,18 +1,22 @@
 from tensorflow.keras.models import load_model
+from tqdm.notebook import tqdm
+from tensorflow.keras import backend as K
 
-from compare import get_h_lava_via_one_step
+from compare import get_h_lava_via_one_step, kl_divergence, ws_distance, plot_image_comparison, load_samples_for_test
+from contrib.DLFuzz.dlfuzz import DLFuzz
 from model.XAI_classifier import xai_model
 from model.vae import VAE
 from xai import gradient_of_x
 
 import numpy as np
+import tensorflow as tf
 
 def generate_adversarial_with_gradient_descent(h_view, label, alpha, num_iterations):
     # h_view: latent space
     # load models
     vae = VAE.load("trained_models/VAE")
     cnn = load_model("trained_models/CNN/classifier.h5")
-    xai = xai_model(vae.decoder, cnn, input_shape=(10,))
+    xai = xai_model(vae.decoder, cnn, input_shape=(12,))
 
     # prepare data
     x = np.array([h_view])
@@ -74,3 +78,68 @@ def generate_adversarial_lava_step_by_step(h, y_onehot, vae, xai, cnn, alpha=0.0
         h = h_lava
 
     return image_gen, h_lava
+
+
+if __name__ == "__main__":
+
+    vae = VAE.load("trained_models")
+    cnn = load_model("trained_models/classifier.h5")
+    xai = xai_model(vae.decoder, cnn, input_shape=(12,))
+
+    # input images
+    # samples_test, sample_labels_test = load_samples_for_test_folder(img_dir='./contrib/DLFuzz/MNIST/seeds_50')
+    samples_test, sample_labels_test = load_samples_for_test(200)
+
+    # prepare
+    samples_view = samples_test
+    sample_labels_view = sample_labels_test
+    # samples_view = samples
+    # sample_labels_view = sample_labels
+
+    x_view = np.reshape(samples_view, (-1, 784))
+    y_onehot_view = tf.one_hot(tf.constant(sample_labels_view), depth=10).numpy()
+    h_view = vae.encoder.predict(x_view)
+
+    K.set_learning_phase(0)
+    dlfuzz = DLFuzz(cnn)
+
+    # start
+    for i in tqdm(range(len(x_view))):
+
+        # calculate fuzz image
+        image_org = samples_view[i]
+        label_org = sample_labels_view[i]
+
+        # generate dlfuzz image
+        image_gen_fuzz = dlfuzz.generate_fuzzy_image(image_org)  # of shape (28, 28, 1)
+
+        # generate latent variant image
+        image_gen_lava, h_lava = generate_adversarial_lava(h_view[i], y_onehot_view[i], vae, xai)
+
+        label_fuzz = np.argmax(cnn.predict(np.array([image_gen_fuzz]))[0])
+        label_lava = np.argmax(cnn.predict(np.array([image_gen_lava]))[0])
+
+        # List of images and their titles
+        images = [image_org, image_gen_fuzz, image_gen_lava]
+        titles = [f'image_org_{label_org}', f'image_gen_fuzz_{label_fuzz}', f'image_gen_lava_{label_lava}']
+
+        # Plot the images
+        if label_lava != label_org:
+            plot_image_comparison(images, titles)
+
+            # in latent space
+            h = np.array[h_view[i]]
+            h_fuzz = vae.encoder.predict(np.array([image_gen_fuzz.reshape((784,))]))[0]
+
+            d_fuzz = np.linalg.norm(h - h_fuzz)
+            d_lava = np.linalg.norm(h - h_lava)
+            print(f"d_fuzz: {d_fuzz}\nd_lava: {d_lava}")
+
+            # in image space
+            kl_fuzz = kl_divergence(image_org, image_gen_fuzz)
+            kl_lava = kl_divergence(image_org, image_gen_lava)
+            print(f"kl_fuzz: {kl_fuzz}\nkl_lava: {kl_lava}")
+
+            ws_fuzz = ws_distance(image_org, image_gen_fuzz)
+            ws_lava = ws_distance(image_org, image_gen_lava)
+            print(f"ws_fuzz: {ws_fuzz}\nws_lava: {ws_lava}")

@@ -2,12 +2,10 @@
 
 from __future__ import print_function
 
-from PIL import Image
 import os
 
 from scipy.special import rel_entr
 from sklearn.metrics import mean_squared_error
-from tqdm import tqdm
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -15,20 +13,15 @@ import matplotlib.pyplot as plt
 from scipy.stats import entropy
 from scipy.stats import wasserstein_distance
 
-from tensorflow.keras.models import clone_model, load_model
 import tensorflow as tf
-from tensorflow.keras import backend as K
-from tensorflow.keras.models import Sequential, Model
+
+from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import InputLayer
 
 from data.mnist import mnist_data
 from data.utils import sample_and_categorize
-from lava_generator import generate_adversarial_lava
-from model.XAI_classifier import xai_model
-from model.vae import VAE
 
-from contrib.DLFuzz.dlfuzz import DLFuzz
-from contrib.DLFuzz.utils import clear_up_dir, load_image, deprocess_image, get_signature
+from contrib.DLFuzz.utils import load_image
 
 
 def flatten_model(nested_model):
@@ -162,68 +155,3 @@ def ws_distance(img1, img2):
     img1 = normalize_as_probability_distribution(img1.flatten())
     img2 = normalize_as_probability_distribution(img2.flatten())
     return wasserstein_distance(img1, img2)
-
-
-if __name__ == "__main__":
-
-    vae = VAE.load("trained_models")
-    cnn = load_model("trained_models/classifier.h5")
-    xai = xai_model(vae.decoder, cnn, input_shape=(12,))
-
-    # input images
-    # samples_test, sample_labels_test = load_samples_for_test_folder(img_dir='./contrib/DLFuzz/MNIST/seeds_50')
-    samples_test, sample_labels_test = load_samples_for_test(200)
-
-    # prepare
-    samples_view = samples_test
-    sample_labels_view = sample_labels_test
-    # samples_view = samples
-    # sample_labels_view = sample_labels
-
-    x_view = np.reshape(samples_view, (-1, 784))
-    y_onehot_view = tf.one_hot(tf.constant(sample_labels_view), depth=10).numpy()
-    h_view = vae.encoder.predict(x_view)
-
-    K.set_learning_phase(0)
-    dlfuzz = DLFuzz(cnn)
-
-    # start
-    for i in tqdm(range(len(x_view))):
-
-        # calculate fuzz image
-        image_org = samples_view[i]
-        label_org = sample_labels_view[i]
-
-        # generate dlfuzz image
-        image_gen_fuzz = dlfuzz.generate_fuzzy_image(image_org)  # of shape (28, 28, 1)
-
-        # generate latent variant image
-        image_gen_lava, h_lava = generate_adversarial_lava(h_view[i], y_onehot_view[i], vae, xai)
-
-        label_fuzz = np.argmax(cnn.predict(np.array([image_gen_fuzz]))[0])
-        label_lava = np.argmax(cnn.predict(np.array([image_gen_lava]))[0])
-
-        # List of images and their titles
-        images = [image_org, image_gen_fuzz, image_gen_lava]
-        titles = [f'image_org_{label_org}', f'image_gen_fuzz_{label_fuzz}', f'image_gen_lava_{label_lava}']
-
-        # Plot the images
-        if label_lava != label_org:
-            plot_image_comparison(images, titles)
-
-            # in latent space
-            h = np.array[h_view[i]]
-            h_fuzz = vae.encoder.predict(np.array([image_gen_fuzz.reshape((784,))]))[0]
-
-            d_fuzz = np.linalg.norm(h - h_fuzz)
-            d_lava = np.linalg.norm(h - h_lava)
-            print(f"d_fuzz: {d_fuzz}\nd_lava: {d_lava}")
-
-            # in image space
-            kl_fuzz = kl_divergence(image_org, image_gen_fuzz)
-            kl_lava = kl_divergence(image_org, image_gen_lava)
-            print(f"kl_fuzz: {kl_fuzz}\nkl_lava: {kl_lava}")
-
-            ws_fuzz = ws_distance(image_org, image_gen_fuzz)
-            ws_lava = ws_distance(image_org, image_gen_lava)
-            print(f"ws_fuzz: {ws_fuzz}\nws_lava: {ws_lava}")

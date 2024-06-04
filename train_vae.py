@@ -133,7 +133,7 @@ if __name__ == "__main__":
     # print(x_train.shape)
     # print(x_train_samples.shape)
 
-    lat_dim = 10
+    lat_dim = 12
 
     # 2. load model
     if args.load_model:
@@ -158,7 +158,7 @@ if __name__ == "__main__":
 
     xai = xai_model(vae_model.decoder, cnn, input_shape=(lat_dim,))
 
-    z = [2, 2, 1, 2, 1, 2, 0, 1, 1, 0]
+    z = [2, 2, 1, 2, 1, 2, 0, 1, 1, 0, 0, 0]
 
     img = vae_model.decoder.predict([z])
     img = np.reshape(img[0], (28, 28))
