@@ -23,10 +23,9 @@ from tensorflow.keras.layers import InputLayer
 
 from data.mnist import mnist_data
 from data.utils import sample_and_categorize
+from lava_generator import generate_adversarial_lava
 from model.XAI_classifier import xai_model
 from model.vae import VAE
-
-from xai import gradient_of_x
 
 from contrib.DLFuzz.dlfuzz import DLFuzz
 from contrib.DLFuzz.utils import clear_up_dir, load_image, deprocess_image, get_signature
@@ -105,6 +104,15 @@ def get_h_lava_via_one_step(h, gradient, step=0.5):
     return h_lava
 
 
+def normalize_maxmin(arr):
+    """
+    Normalize a numpy array so that its sum is 1.
+    """
+    max_, min_ = max(arr), min(arr)
+    arr = arr - min_ / max_ - min_
+    return arr
+
+
 def normalize_as_probability_distribution(arr):
     """
     Normalize a numpy array so that its sum is 1.
@@ -117,14 +125,16 @@ def normalize_as_probability_distribution(arr):
 
 def cross_entropy(img1, img2):
     # element-wise relative entropy (KL divergence)
-    img1 = normalize_as_probability_distribution(img1.flatten())
-    img2 = normalize_as_probability_distribution(img2.flatten())
+    img1 = normalize_maxmin(img1.flatten())
+    img2 = normalize_maxmin(img2.flatten())
+    img1 = img1[img2 != 0]
+    img2 = img2[img2 != 0]
     return np.sum(rel_entr(img1, img2))
 
 
 def mse_loss(img1, img2):
-    img1 = normalize_as_probability_distribution(img1.flatten())
-    img2 = normalize_as_probability_distribution(img2.flatten())
+    img1 = normalize_maxmin(img1.flatten())
+    img2 = normalize_maxmin(img2.flatten())
     return mean_squared_error(img1, img2)
 
 
@@ -143,15 +153,7 @@ def js_divergence(img1, img2):
     # jessen divergence
     # Smaller JS Divergence is Better: Similar to KL divergence,
     # a smaller JS divergence indicates that the two distributions are more similar.
-    _img1 = normalize_as_probability_distribution(img1.flatten())
-    _img2 = normalize_as_probability_distribution(img2.flatten())
-    img1 = _img1[_img2 != 0]
-    img2 = _img2[_img2 != 0]
-    kl1 = entropy(img1, img2)
-    img1 = _img1[_img1 != 0]
-    img2 = _img2[_img1 != 0]
-    kl2 = entropy(img2, img1)
-    return (kl1 + kl2) / 2
+    return (kl_divergence(img1, img2) + kl_divergence(img2, img1)) / 2
 
 
 def ws_distance(img1, img2):
@@ -173,13 +175,13 @@ if __name__ == "__main__":
     samples_test, sample_labels_test = load_samples_for_test(200)
 
     # prepare
-    view_samples = samples_test
-    view_sample_labels = sample_labels_test
-    # view_samples = samples
-    # view_sample_labels = sample_labels
+    samples_view = samples_test
+    sample_labels_view = sample_labels_test
+    # samples_view = samples
+    # sample_labels_view = sample_labels
 
-    x_view = np.reshape(view_samples, (-1, 784))
-    y_view_onehot = tf.one_hot(tf.constant(view_sample_labels), depth=10).numpy()
+    x_view = np.reshape(samples_view, (-1, 784))
+    y_onehot_view = tf.one_hot(tf.constant(sample_labels_view), depth=10).numpy()
     h_view = vae.encoder.predict(x_view)
 
     K.set_learning_phase(0)
@@ -189,20 +191,14 @@ if __name__ == "__main__":
     for i in tqdm(range(len(x_view))):
 
         # calculate fuzz image
-        image_org = np.array([view_samples[i]], dtype="float32")
-        label_org = view_sample_labels[i]
-        image_gen_fuzz = dlfuzz.generate_fuzzy_image(image_org)
-        # of shape (28, 28, 1)
+        image_org = samples_view[i]
+        label_org = sample_labels_view[i]
 
-        # calculate latent variant image
-        x = np.array([h_view[i]])
-        y = np.array([y_view_onehot[i]])
-        g = gradient_of_x(x, y, xai)
-        g_npy = np.squeeze(g.numpy())
+        # generate dlfuzz image
+        image_gen_fuzz = dlfuzz.generate_fuzzy_image(image_org)  # of shape (28, 28, 1)
 
-        var = 0.5
-        h_lava = get_h_lava_via_one_step(x, g_npy, step=var)
-        image_gen_lava = vae.decoder.predict(h_lava)[0].reshape((28, 28, 1))
+        # generate latent variant image
+        image_gen_lava, h_lava = generate_adversarial_lava(h_view[i], y_onehot_view[i], vae, xai)
 
         label_fuzz = np.argmax(cnn.predict(np.array([image_gen_fuzz]))[0])
         label_lava = np.argmax(cnn.predict(np.array([image_gen_lava]))[0])
@@ -216,9 +212,11 @@ if __name__ == "__main__":
             plot_image_comparison(images, titles)
 
             # in latent space
+            h = np.array[h_view[i]]
             h_fuzz = vae.encoder.predict(np.array([image_gen_fuzz.reshape((784,))]))[0]
-            d_fuzz = np.linalg.norm(x - h_fuzz)
-            d_lava = np.linalg.norm(x - h_lava)
+
+            d_fuzz = np.linalg.norm(h - h_fuzz)
+            d_lava = np.linalg.norm(h - h_lava)
             print(f"d_fuzz: {d_fuzz}\nd_lava: {d_lava}")
 
             # in image space
