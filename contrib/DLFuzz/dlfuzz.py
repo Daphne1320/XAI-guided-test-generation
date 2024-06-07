@@ -391,7 +391,7 @@ class DLFuzz:
         perturb_adversial = L2_norm / orig_L2_norm
         return current_coverage - previous_coverage > 0.01 / (iter + 1) and perturb_adversial < 0.02
 
-    def generate_fuzzy_image(self, tmp_img):
+    def generate_adversarial_image(self, tmp_img):
         orig_img = tmp_img.copy()
 
         # start_time = time.clock()

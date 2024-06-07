@@ -26,6 +26,7 @@ def load_samples_from_janusdeep(data_path="mnist_images/np_data"):
     list: A list of AdversarialImage instances loaded from the .npy files.
     """
     npy_files = [f for f in os.listdir(data_path) if f.endswith('.npy')]
+    npy_files = sorted(npy_files, key=lambda x: int(x.split('_')[1]))
     adversarial_images = []
 
     for file in npy_files:
