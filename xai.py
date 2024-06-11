@@ -1,6 +1,46 @@
 import tensorflow as tf
+
+from tensorflow.keras.models import Sequential
+from tensorflow.keras.layers import InputLayer
 from train_vae import *
 
+
+def flatten_model(nested_model):
+    """
+    Flatten a nested Keras model into a single sequential model.
+
+    Parameters:
+    nested_model (tf.keras.Model): The nested model to flatten.
+
+    Returns:
+    tf.keras.Sequential: A flattened sequential model.
+    """
+    flat_model = Sequential()
+
+    # Add an input layer explicitly
+    flat_model.add(InputLayer(input_shape=nested_model.input_shape[1:]))
+
+    def add_layers(layers):
+        for layer in layers:
+            if isinstance(layer, tf.keras.Model):
+                add_layers(layer.layers)  # Recursively add nested layers
+            else:
+                # Skip cloning the InputLayer, just add it directly
+                if isinstance(layer, InputLayer):
+                    flat_model.add(layer)
+                else:
+                    # Clone the layer configuration
+                    cloned_layer = layer.__class__.from_config(layer.get_config())
+                    # Build layer to initialize weights
+                    cloned_layer.build(layer.input_shape)
+                    # Copy weights
+                    cloned_layer.set_weights(layer.get_weights())
+                    # print(f"Adding layer: {layer.name}")
+                    flat_model.add(cloned_layer)
+
+    add_layers(nested_model.layers)
+
+    return flat_model
 
 def gradient_of_x(x, y, model, before_softmax=False):
     # Check if the last layer is a Dense layer with softmax activation
