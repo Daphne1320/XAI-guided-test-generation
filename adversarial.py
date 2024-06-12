@@ -3,7 +3,7 @@
 from __future__ import print_function
 
 import os
-from tqdm import tqdm
+from tqdm.notebook import tqdm
 
 import matplotlib.pyplot as plt
 
@@ -24,9 +24,9 @@ def predict_label(cnn, image):
     return np.argmax(cnn.predict(np.array([image]))[0])
 
 
-def load_samples_for_test(number):
+def load_samples_for_test(number, return_indices=False):
     train_images, train_labels, test_images, test_labels = mnist_data()
-    return sample_and_categorize(test_images, test_labels, number=number)
+    return sample_and_categorize(test_images, test_labels, number=number, return_indices=return_indices)
 
 
 def load_samples_for_test_from_folder(img_dir):
@@ -54,6 +54,8 @@ if __name__ == "__main__":
     cnn = load_model("trained_models/CNN/classifier.h5")
     xai = xai_model(vae.decoder, cnn, input_shape=(12,))
 
+    # input shape: (28, 28, 1)
+
     # input images
     fgsm = FGSM(cnn)
     # dlfuzz = DLFuzz(cnn)
@@ -78,7 +80,7 @@ if __name__ == "__main__":
         image_adv = fgsm.generate_adversarial_image(image_org, y_onehot[i])
         # image_adv = dlfuzz.generate_adversarial_image(image_org)  # of shape (28, 28, 1)
         # image_adv = clhans.generate_adversarial_image(image_org)  # of shape (28, 28, 1)
-        # image_adv = lava.generate_adversarial_image(x[i], y_onehot_view[i])
+        # image_adv = lava.generate_adversarial_image(image_org, y_onehot[i])
 
         label_adv = np.argmax(cnn.predict(np.array([image_adv]))[0])
 

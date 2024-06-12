@@ -2,19 +2,18 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def sample_and_categorize(train_images, train_labels, number=3000):
-    """
-    takes a subset of the given training images and labels
-    and converts the labels from one-hot encoded format to categorical format (integer labels).
-    """
+def sample_and_categorize(train_images, train_labels, seed=2024, number=3000, return_indices=False):
     # sample data
+    np.random.seed(seed)
     indices = np.random.choice(train_images.shape[0], size=number, replace=False)
     samples, sample_labels = train_images[indices], train_labels[indices]
 
     # y to labels (in category format)
-    # For example, if sample_labels was [0, 0, 1, 0, 0], np.argmax would convert it to 2.
     sample_labels = np.argmax(sample_labels, axis=-1)
-    return samples, sample_labels
+    if return_indices:
+        return samples, sample_labels, indices
+    else:
+        return samples, sample_labels
 
 
 def value_analysis(scores, varname="varname"):
