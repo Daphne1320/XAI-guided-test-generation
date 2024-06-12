@@ -7,15 +7,14 @@ from adversarial_methods.latent_variation import Lava, LavaMultiSteps
 from contrib.DLFuzz.dlfuzz import DLFuzz
 
 
-def plot_image_comparison(images, titles, cmap='gray'):
-    fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-    for ax, img, title in zip(axes, images, titles):
+def plot_image_comparison(images, labels, markers, cmap='gray'):
+    fig, axes = plt.subplots(1, len(images), figsize=(15, 5))
+    for ax, img, label, marker in zip(axes, images, labels, markers):
         ax.imshow(img.squeeze(), cmap=cmap)
-        ax.set_title(title)
+        ax.set_title(f"image_{marker}_{label}")
         ax.axis('off')
     plt.tight_layout()
     plt.show()
-
 
 if __name__ == "__main__":
     cnn = load_model("trained_models/CNN/classifier.h5")

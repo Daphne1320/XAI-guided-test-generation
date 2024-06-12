@@ -11,7 +11,7 @@ class FGSM():
     def __init__(self, model):
         self.model = model
 
-    def generate_adversarial_image(self, image, image_label, step=0.01):
+    def generate_adversarial_image(self, image, image_label, step=0.5):
         """
 
         Args:
