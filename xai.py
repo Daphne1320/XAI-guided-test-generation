@@ -42,6 +42,7 @@ def flatten_model(nested_model):
 
     return flat_model
 
+
 def gradient_of_x(x, y, model, before_softmax=False):
     # Check if the last layer is a Dense layer with softmax activation
     if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
