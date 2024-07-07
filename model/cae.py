@@ -3,13 +3,15 @@ from tensorflow.keras.layers import (Input, Dense, Conv2D, MaxPooling2D, Flatten
 from tensorflow.keras.models import Model, Sequential, clone_model, load_model
 from tensorflow.keras.optimizers import Adam
 
-# Conventional AutoEncoder
+
+# Convolutional AutoEncoder
 class CAE:
-    def __init__(self, input_dim=784, latent_dim=64, intermediate_dim=512):
+    def __init__(self, input_dim=784, latent_dim=64, intermediate_dim=512, name="cae"):
         self.input_dim = input_dim
         self.latent_dim = latent_dim
         self.intermediate_dim = intermediate_dim
         self.model, self.encoder, self.decoder = self.build_model()
+        self.name = name
 
     def build_model(self):
         input_img = Input(shape=(self.input_dim,))
@@ -70,12 +72,15 @@ class CAE:
         cloned_encoder.trainable = False
         return cloned_encoder
 
-    def save(self, path):
-        self.encoder.save(os.path.join(path, "VAE_encoder.ckpt.h5"))
-        self.decoder.save(os.path.join(path, "VAE_decoder.ckpt.h5"))
-        self.model.save(os.path.join(path, "VAE_model.ckpt.h5"))
+    def save(self, path="trained_models"):
+        self.encoder.save(os.path.join(path, f"{self.name}_encoder.ckpt.h5"))
+        self.decoder.save(os.path.join(path, f"{self.name}_decoder.ckpt.h5"))
+        self.model.save(os.path.join(path, f"{self.name}_model.ckpt.h5"))
 
-    def load(self, path):
-        self.encoder = load_model(os.path.join(path, "VAE_encoder.ckpt.h5"))
-        self.decoder = load_model(os.path.join(path, "VAE_decoder.ckpt.h5"))
-        self.model = load_model(os.path.join(path, "VAE_model.ckpt.h5"))
+    @classmethod
+    def load(cls, path, model_name="cae"):
+        model = cls()
+        model.encoder = load_model(os.path.join(path, f"{model_name}_encoder.ckpt.h5"))
+        model.decoder = load_model(os.path.join(path, f"{model_name}_decoder.ckpt.h5"))
+        model.model = load_model(os.path.join(path, f"{model_name}_model.ckpt.h5"))
+        return model

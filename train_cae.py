@@ -1,45 +1,44 @@
 import numpy as np
-
-from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
 
 from model.cae import CAE
-from utils.NoisyDataGenerator import NoisyDataGenerator
-from utils.plot import plot_encodings2d_with_labels
-from utils.utils import get_mnist_data, sample_and_categorize, timer
-
-
-@timer
-def pretrain_cae(x_train, x_train_samples):
-    # x_train and x_train_samples are reshaped to 1-d vectors
-
-    data_gen = NoisyDataGenerator(x_train, batch_size=128)
-    model_pre = CAE()
-
-    # %%time
-    history = model_pre.model.fit(data_gen, epochs=10)
-    # plot_learning_curve(history)
-    # plot_denoiser_examples(model_pre.model, x_train_samples)
-
-    classifier = model_pre.classifier()
-    encodings_pretrain = model_pre.encoder.predict(x_train_samples)
-    image_encoder = model_pre.clone_encoder()
-
-    return classifier, encodings_pretrain, image_encoder
-
+from data.mnist import mnist_data
+from data.utils import sample_and_categorize
+from train_vae import plot_learning_curve
 
 if __name__ == "__main__":
-    # get data
-    train_images, train_labels, test_images, test_labels = get_mnist_data(True, True)
-    samples, sample_labels = sample_and_categorize(train_images, train_labels, number=3000)  # for run_with_visual
+    # 1. data
+    # load data
+    train_images, train_labels, test_images, test_labels = mnist_data()
+    samples, sample_labels = sample_and_categorize(train_images, train_labels, number=3000)
+    # samples, sample_labels = sample_and_categorize(train_images, train_labels)
+    samples_test, sample_labels_test = sample_and_categorize(test_images, test_labels)
+    print(samples.shape)
+    print(sample_labels.shape)
 
-    # data reshape for model
-    x_train = np.reshape(train_images, (-1, 784))
-    x_train_samples = np.reshape(samples, (-1, 784))
+    # reshape data
+    y_train = np.reshape(samples, (-1, 784))
+    x_train = y_train + np.random.normal(0, 0.01, size=y_train.shape)
+    print(x_train.shape)
+    print(y_train.shape)
 
-    # save model to local & import next time
-    clf, encodings_samples, encoder = pretrain_cae(x_train, x_train_samples)
+    # 2. model: train a CAE
+    model_pre = CAE(latent_dim=12, name="cae2")
 
-    # plot
-    tsne = TSNE(n_components=2, random_state=42)
-    encodings_samples_2d = tsne.fit_transform(encodings_samples)
-    plot_encodings2d_with_labels(encodings_samples_2d, sample_labels)
+    # Fit the model. Note that the 'eps' input is ignored because it is an Input tensor.
+    history = model_pre.model.fit(x_train, y_train, epochs=50, batch_size=100)
+    plot_learning_curve(history)
+
+    # show example
+    x_test = np.reshape(samples_test, (-1, 784))
+    for i in range(10):
+        # Extract the current sample and add batch dimension
+        sample = np.expand_dims(x_test[i], axis=0)
+
+        embed = model_pre.encoder(sample)
+        img = model_pre.decoder(embed)
+        plt.imshow(np.reshape(x_test[i], (28, 28)))
+        plt.imshow(np.reshape(img, (28, 28)))
+        print("-"*64)
+
+    model_pre.save()

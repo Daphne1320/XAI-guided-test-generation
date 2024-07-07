@@ -1,0 +1,11 @@
+{
+    "lava_vae_forward_gradient": 0.09326424870466321,
+    "lava_vae_bp_gradient": 0.11917098445595854,
+    "lava_vae_vanilla": 0.11917098445595854,
+    "lava_cae_forward_gradient": 0.03626943005181347,
+    "lava_cae_bp_gradient": 0.05699481865284974,
+    "lava_cae_vanilla": 0.05699481865284974,
+    "lava_cvae_forward_gradient": 0.6787564766839378,
+    "lava_cvae_bp_gradient": 0.5958549222797928,
+    "lava_cvae_vanilla": 0.0
+}

@@ -1,19 +1,18 @@
 import tensorflow as tf
-from keras.utils import to_categorical
+from tensorflow.keras.utils import to_categorical
 
 
 def mnist_data(reshape=True, categorical=True):
     (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
-    # Normalization to [0,1]
     x_train, x_test = x_train / 255.0, x_test / 255.0
 
     if reshape:
-        # Reshape data, add one channel
+        # Reshape data
         x_train = x_train.reshape((x_train.shape[0], 28, 28, 1))
         x_test = x_test.reshape((x_test.shape[0], 28, 28, 1))
 
     if categorical:
-        # Convert class vectors to binary class matrices (Prepare for categorical cross-entropy loss)
+        # Convert class vectors to binary class matrices
         y_train = to_categorical(y_train, 10)
         y_test = to_categorical(y_test, 10)
 

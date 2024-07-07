@@ -1,8 +1,16 @@
-import tensorflow as tf
+import numpy as np
+import matplotlib.pyplot as plt
 
-from tensorflow.keras.models import Sequential
-from tensorflow.keras.layers import InputLayer
-from train_vae import *
+import tensorflow as tf
+from tensorflow.keras.models import clone_model, load_model
+from tensorflow.keras.models import Sequential, Model
+from tensorflow.keras.layers import InputLayer, Dense
+from tensorflow.keras.activations import softmax
+
+from model.XAI_classifier import xai_model
+from model.vae import VAE
+from data.mnist import mnist_data
+from data.utils import sample_and_categorize
 
 
 def flatten_model(nested_model):
@@ -43,15 +51,20 @@ def flatten_model(nested_model):
     return flat_model
 
 
-def gradient_of_x(x, y, model, before_softmax=False):
-    # Check if the last layer is a Dense layer with softmax activation
-    if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
-            getattr(model.layers[-1], 'activation') == tf.keras.activations.softmax:
+def remove_last_softmax_activation(model):
+    if isinstance(model.layers[-1], Dense) and getattr(model.layers[-1], 'activation') == softmax:
         # Modify the last layer to have a linear activation
         model_clone = tf.keras.models.clone_model(model)
         model_clone.set_weights(model.get_weights())
         model_clone.layers[-1].activation = tf.keras.activations.linear
-        model = tf.keras.Model(inputs=model_clone.inputs, outputs=model_clone.layers[-1].output)
+        model = Model(inputs=model_clone.inputs, outputs=model_clone.layers[-1].output)
+    return model
+
+
+def gradient_of_x(x, y, model, before_softmax=False):
+    # Check if the last layer is a Dense layer with softmax activation
+    if before_softmax:
+        model = remove_last_softmax_activation(model)
 
     # Convert the numpy arrays to TensorFlow tensors
     input_data = tf.convert_to_tensor(x, dtype=tf.float32)
@@ -72,13 +85,8 @@ def gradient_of_x(x, y, model, before_softmax=False):
 
 def saliency_of_x(x, model, before_softmax=False):
     # Check if the last layer is a Dense layer with softmax activation
-    if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
-            getattr(model.layers[-1], 'activation') == tf.keras.activations.softmax:
-        # Modify the last layer to have a linear activation
-        model_clone = tf.keras.models.clone_model(model)
-        model_clone.set_weights(model.get_weights())
-        model_clone.layers[-1].activation = tf.keras.activations.linear
-        model = tf.keras.Model(inputs=model_clone.inputs, outputs=model_clone.layers[-1].output)
+    if before_softmax:
+        model = remove_last_softmax_activation(model)
 
     # Convert the numpy array to a TensorFlow tensor
     input_data = tf.convert_to_tensor(x, dtype=tf.float32)
@@ -108,13 +116,8 @@ def effect_of_x(x, y, model, before_softmax=False, delta=1e-3):
     """
 
     # Check if the last layer is a Dense layer with softmax activation
-    if before_softmax and isinstance(model.layers[-1], tf.keras.layers.Dense) and \
-            getattr(model.layers[-1], 'activation') == tf.keras.activations.softmax:
-        # Modify the last layer to have a linear activation
-        model_clone = tf.keras.models.clone_model(model)
-        model_clone.set_weights(model.get_weights())
-        model_clone.layers[-1].activation = tf.keras.activations.linear
-        model = tf.keras.Model(inputs=model_clone.inputs, outputs=model_clone.layers[-1].output)
+    if before_softmax:
+        model = remove_last_softmax_activation(model)
 
     g = np.zeros(x.shape[-1])
     for i in range(x.shape[-1]):
@@ -330,19 +333,20 @@ if __name__ == '__main__':
     xai = xai_model(vae.decoder, cnn, input_shape=(12,))
     xai.summary()
 
-    view_samples = samples_test
-    view_sample_labels = sample_labels_test
-    # view_samples = samples
-    # view_sample_labels = sample_labels
+    # samples to plot and view
+    samples_view = samples_test
+    sample_labels_view = sample_labels_test
+    # samples_view = samples
+    # sample_labels_view = sample_labels
 
-    x_view = np.reshape(view_samples, (-1, 784))
-    y_view_onehot = tf.one_hot(tf.constant(view_sample_labels), depth=10).numpy()
+    x_view = np.reshape(samples_view, (-1, 784))
+    y_onehot_view = tf.one_hot(tf.constant(sample_labels_view), depth=10).numpy()
     h_view = vae.encoder.predict(x_view)
 
     count = 10
     for i in range(len(x_view)):
         x = np.array([h_view[i]])
-        y = np.array([y_view_onehot[i]])
+        y = np.array([y_onehot_view[i]])
         # g = gradient_of_x(x, y, xai)
         g = saliency_of_x(x, xai)
 
@@ -353,7 +357,7 @@ if __name__ == '__main__':
         # Identify the maximum gradient entry
         max_grad_index = np.argmax(np.abs(g_npy))
         # latent_space_display(x, vae.decoder, highlight_dim=max_grad_index)
-        latent_space_display_mark(x, view_sample_labels[i], vae.decoder, xai, highlight_dim=int(max_grad_index))
+        latent_space_display_mark(x, sample_labels_view[i], vae.decoder, xai, highlight_dim=int(max_grad_index))
 
         if count <= 0:
             break

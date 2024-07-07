@@ -15,8 +15,7 @@ def nll(y_true, y_pred):
 
 class KLDivergenceLayer(Layer):
     """ Identity transform layer that adds KL divergence
-    to the final model loss. This is a crucial component in VAEs to
-    ensure the latent space distribution remains close to a standard normal distribution.
+    to the final model loss.
     """
 
     def __init__(self, *args, **kwargs):
@@ -35,6 +34,7 @@ class KLDivergenceLayer(Layer):
         return inputs
 
 
+# Variational AutoEncoder
 class VAE:
     def __init__(self, input_dim=784, latent_dim=2, intermediate_dim=512, name="vae"):
         self.input_dim = input_dim
@@ -53,7 +53,6 @@ class VAE:
         z_mu, z_log_var = KLDivergenceLayer()([z_mu, z_log_var])
         z_sigma = Lambda(lambda t: K.exp(.5 * t))(z_log_var)
 
-        # variational
         eps = Input(tensor=K.random_normal(stddev=1.0,
                                            shape=(K.shape(x)[0], self.latent_dim)))
         z_eps = Multiply()([z_sigma, eps])
@@ -62,7 +61,7 @@ class VAE:
         decoder = Sequential([
             Dense(self.intermediate_dim, input_dim=self.latent_dim, activation='relu'),
             Dense(self.input_dim, activation='sigmoid')
-        ], name="decoder")
+        ])
 
         x_pred = decoder(z)
 
@@ -89,7 +88,7 @@ class VAE:
     def image_encoder(self):
         return self.encoder
 
-    def save(self, model_path="trained_models/VAE"):
+    def save(self, model_path="trained_models"):
         self.model.save(os.path.join(model_path, f"{self.name}_model.h5"))
         self.encoder.save(os.path.join(model_path, f"{self.name}_encoder.h5"))
         self.decoder.save(os.path.join(model_path, f"{self.name}_decoder.h5"))

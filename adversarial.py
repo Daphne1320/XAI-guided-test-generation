@@ -1,23 +1,26 @@
-# -*- coding: utf-8 -*-
-
-from __future__ import print_function
+# external imports
 
 import os
-from tqdm.notebook import tqdm
-
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from tensorflow.keras.models import load_model
 import tensorflow as tf
+from tensorflow.keras.models import load_model
 from tensorflow.keras import backend as K
 
-from adversarial_methods.fgsm import FGSM
+# internal imports
 from data.mnist import mnist_data
 from data.utils import sample_and_categorize
-from model.XAI_classifier import xai_model
-from model.vae import VAE
 
-from discrepancy_measure import *
+from model.vae import VAE
+from model.cae import CAE
+from model.cvae import C_VAE
+
+from adversarial_methods.latent_variation import LavaMultiSteps
+# from contrib.Cleverhans.cleverhans import CleverHans
+
+from measure_discrepancy import *
+from measure_validity import *
 
 
 def predict_label(cnn, image):
@@ -30,7 +33,7 @@ def load_samples_for_test(number, return_indices=False):
 
 
 def load_samples_for_test_from_folder(img_dir):
-    from contrib.DLFuzz.utils import load_image
+    from adversarial_methods.DLFuzz.utils import load_image
 
     img_paths = os.listdir(img_dir)
     samples_test = np.reshape([load_image(os.path.join(img_dir, img_path)) for img_path in img_paths], (-1, 28, 28, 1))
@@ -49,20 +52,15 @@ def plot_image_comparison_two(images, titles, cmap='gray'):
 
 
 if __name__ == "__main__":
-
-    vae = VAE.load("trained_models/VAE")
-    cnn = load_model("trained_models/CNN/classifier.h5")
-    xai = xai_model(vae.decoder, cnn, input_shape=(12,))
-
+    cnn = load_model("trained_models/classifier.h5")
     # input shape: (28, 28, 1)
 
-    # input images
-    fgsm = FGSM(cnn)
+    # fgsm = FGSM(cnn)
     # dlfuzz = DLFuzz(cnn)
     # clhans = CleverHans(cnn)
 
-    # vae = VAE.load("trained_models")
-    # lava = Lava(cnn, vae.encoder, vae.decoder)
+    vae = VAE.load("trained_models")
+    lava = LavaMultiSteps(cnn, vae.encoder, vae.decoder)
 
     # input images
     samples, sample_labels = load_samples_for_test(200)
@@ -77,10 +75,10 @@ if __name__ == "__main__":
         # get original image
         image_org, label_org = samples[i], sample_labels[i]
 
-        image_adv = fgsm.generate_adversarial_image(image_org, y_onehot[i])
+        # image_adv = fgsm.generate_adversarial_image(image_org, y_onehot[i])
         # image_adv = dlfuzz.generate_adversarial_image(image_org)  # of shape (28, 28, 1)
         # image_adv = clhans.generate_adversarial_image(image_org)  # of shape (28, 28, 1)
-        # image_adv = lava.generate_adversarial_image(image_org, y_onehot[i])
+        image_adv, _ = lava.generate_adversarial_image(image_org, y_onehot[i])
 
         label_adv = np.argmax(cnn.predict(np.array([image_adv]))[0])
 

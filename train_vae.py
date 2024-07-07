@@ -1,15 +1,12 @@
-import argparse
-
 import numpy as np
 import matplotlib.pyplot as plt
 from tensorflow.keras.models import clone_model, load_model
-from sklearn.manifold import TSNE
 
 from model.vae import VAE
+from model.cae import CAE
 from data.mnist import mnist_data
 from data.utils import sample_and_categorize
 from model.utils import clone_encoder
-from model.XAI_classifier import xai_model
 
 
 def pretrain_vae(x_train, x_train_samples):
@@ -43,6 +40,7 @@ def plot_learning_curve(history):
     plt.ylabel('Loss')
     plt.xlabel('Epoch')
     plt.legend(['Train'], loc='upper right')
+    plt.savefig('trained_models/learning_curve.pdf')
     plt.show()
 
 
@@ -100,74 +98,36 @@ def plot_encodings2d_with_labels(encodings, labels):
     plt.show()
 
 
-def train_vae(x_train, latent_dim, epochs_size):
+if __name__ == "__main__":
+    # 1. data
+    # load data
+    train_images, train_labels, test_images, test_labels = mnist_data()
+    # samples, sample_labels = sample_and_categorize(train_images, train_labels, number=3000)
+    samples, sample_labels = sample_and_categorize(train_images, train_labels)
+    samples_test, sample_labels_test = sample_and_categorize(test_images, test_labels)
+    print(samples.shape)
+    print(sample_labels.shape)
 
-    model_pre = VAE(latent_dim=latent_dim)
+    # reshape data
+    x_train = np.reshape(samples, (-1, 784))
+    # x_train = np.reshape(train_images, (-1, 784))
+    print(x_train.shape)
 
-    dummy_eps_input = np.zeros((len(x_train), model_pre.latent_dim))
+    # 2. model: train a VAE
+    model_pre = VAE(latent_dim=12, name="vae2")
 
     # Fit the model. Note that the 'eps' input is ignored because it is an Input tensor.
-    history = model_pre.model.fit([x_train, dummy_eps_input], x_train, shuffle=True, epochs=epochs_size, batch_size=100)
-    # plot_learning_curve(history)
+    dummy_eps_input = np.zeros((len(x_train), model_pre.latent_dim))
+    history = model_pre.model.fit([x_train, dummy_eps_input], x_train, shuffle=True, epochs=50, batch_size=100)
+    plot_learning_curve(history)
+
+    # show example
+    x_test = np.reshape(samples_test, (-1, 784))
+    for i in range(10):
+        embed = model_pre.encoder(x_test[i])
+        img = model_pre.decoder(embed)
+        plt.imshow(np.reshape(x_test[i], (28, 28)))
+        plt.imshow(np.reshape(img, (28, 28)))
+        print("-"*64)
 
     model_pre.save()
-    return model_pre
-
-
-if __name__ == "__main__":
-    # parse args
-    parser = argparse.ArgumentParser(description="Run script with arguments")
-    parser.add_argument("--load_model", action='store_true', help="Whether load existing model or train new model.")
-
-    args = parser.parse_args()
-
-    # 1. data
-    train_images, train_labels, test_images, test_labels = mnist_data()
-    samples, sample_labels = sample_and_categorize(train_images, train_labels, number=60000)
-    # print(samples.shape)
-    # print(sample_labels.shape)
-
-    x_train = np.reshape(samples, (-1, 784))
-    x_train_samples = np.reshape(samples, (-1, 784))
-
-    # print(x_train.shape)
-    # print(x_train_samples.shape)
-
-    lat_dim = 12
-
-    # 2. load model
-    if args.load_model:
-        # run python train_vae.py --load_model
-        vae_model = VAE.load(model_path="trained_models/VAE")
-    else:
-        # run python train_vae.py
-        vae_model = train_vae(x_train, lat_dim, 100)
-
-    classifier = vae_model.classifier()
-    encodings_pretrain = vae_model.encoder.predict(x_train_samples)
-    image_encoder = clone_encoder(vae_model.image_encoder())
-
-    # t-SNE (t-Distributed Stochastic Neighbor Embedding)
-    # Purpose: t-SNE is a machine learning algorithm for dimensionality reduction,
-    # particularly well-suited for visualizing high-dimensional data in two or three dimensions.
-    # tsne = TSNE(n_components=2, random_state=42)
-    # encodings_samples_2d = tsne.fit_transform(encodings_pretrain)
-    # plot_encodings2d_with_labels(encodings_samples_2d, sample_labels)
-
-    cnn = load_model("trained_models/CNN/classifier.h5")
-
-    xai = xai_model(vae_model.decoder, cnn, input_shape=(lat_dim,))
-
-    z = [2, 2, 1, 2, 1, 2, 0, 1, 1, 0, 0, 0]
-
-    img = vae_model.decoder.predict([z])
-    img = np.reshape(img[0], (28, 28))
-
-    y = xai.predict([z])[0]
-
-    print(y)
-    plt.bar(range(len(y)), y)
-    plt.xticks(range(len(y)), range(len(y)))
-
-    plt.show()
-    plt.imshow(img)

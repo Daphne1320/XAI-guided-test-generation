@@ -2,15 +2,21 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
-def sample_and_categorize(train_images, train_labels, seed=2024, number=3000, return_indices=False):
+def sample_and_categorize(train_images, train_labels, seed=2024, number=None, return_indices=False):
     # sample data
     np.random.seed(seed)
-    indices = np.random.choice(train_images.shape[0], size=number, replace=False)
-    samples, sample_labels = train_images[indices], train_labels[indices]
+
+    if number is not None:
+        indices = np.random.choice(train_images.shape[0], size=number, replace=False)
+        samples, sample_labels = train_images[indices], train_labels[indices]
+    else:
+        samples = train_images
+        sample_labels = train_labels
 
     # y to labels (in category format)
     sample_labels = np.argmax(sample_labels, axis=-1)
-    if return_indices:
+
+    if number and return_indices:
         return samples, sample_labels, indices
     else:
         return samples, sample_labels
